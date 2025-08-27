@@ -19,7 +19,7 @@ function Navbar() {
         className="text-2xl font-bold cursor-pointer"
         onClick={() => navigate("/")}
       >
-        Uyirkaapan
+        Uyirkaapann
       </h1>
 
       {/* Desktop menu */}
