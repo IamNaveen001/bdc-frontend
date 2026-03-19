@@ -16,6 +16,14 @@ import api, { setAuthToken } from '../services/api';
 const AuthContext = createContext(null);
 const googleProvider = new GoogleAuthProvider();
 
+const normalizeAuthError = (err) => {
+  if (err?.response?.status === 401) {
+    return new Error('Login failed because the backend could not verify your Firebase token. Make sure the frontend API URL and backend Firebase Admin credentials belong to the same project.');
+  }
+
+  return err;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
@@ -26,12 +34,17 @@ export const AuthProvider = ({ children }) => {
     const token = await firebaseUser.getIdToken();
     setAuthToken(token);
 
-    const response = await api.post('/api/auth/ensure', {
-      name: firebaseUser.displayName || ''
-    });
+    try {
+      const response = await api.post('/api/auth/ensure', {
+        name: firebaseUser.displayName || ''
+      });
 
-    setRole(response.data.role);
-    return response.data.role;
+      setRole(response.data.role);
+      return response.data.role;
+    } catch (err) {
+      setAuthToken(null);
+      throw normalizeAuthError(err);
+    }
   };
 
   // 🔐 Auth state listener
