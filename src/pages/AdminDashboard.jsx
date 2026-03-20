@@ -59,19 +59,22 @@ export default function AdminDashboard() {
   const [editingDonorId, setEditingDonorId] = useState(null);
   const [editingEventId, setEditingEventId] = useState(null);
   const [emailForm, setEmailForm] = useState({ bloodGroup: 'A+', subject: '', message: '' });
+  const [alertHistory, setAlertHistory] = useState([]);
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     setLoading(true);
-    const [donorRes, eventRes, userRes] = await Promise.all([
+    const [donorRes, eventRes, userRes, alertRes] = await Promise.all([
       api.get('/api/donors/admin/all'),
       api.get('/api/events'),
-      api.get('/api/auth/users')
+      api.get('/api/auth/users'),
+      api.get('/api/email/emergency/history')
     ]);
     setDonors(donorRes.data);
     setEvents(eventRes.data);
     setUsers(userRes.data);
+    setAlertHistory(alertRes.data);
     setLoading(false);
   };
 
@@ -184,6 +187,7 @@ export default function AdminDashboard() {
       const res = await api.post('/api/email/emergency', emailForm);
       setStatus(res.data.message);
       setEmailForm({ bloodGroup: 'A+', subject: '', message: '' });
+      await loadData();
     } catch (err) {
       setFailure(err, 'Failed to send emergency notification');
     }
@@ -687,17 +691,60 @@ export default function AdminDashboard() {
         </form>
       </section>
 
-      <section className={panelClass}>
-        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-red-600">Recipient Context</p>
-        <h2 className="mt-2 text-2xl font-bold text-slate-900">Available responders</h2>
-        <div className="mt-6 grid gap-3 md:grid-cols-2">
-          {bloodGroups.map((group) => (
-            <div key={group} className={`rounded-3xl border px-4 py-4 ${group === emailForm.bloodGroup ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
-              <div className="text-sm font-semibold text-slate-700">{group}</div>
-              <div className="mt-2 text-3xl font-black text-slate-900">{stats.groups[group] || 0}</div>
-              <div className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">Potential donors</div>
-            </div>
-          ))}
+      <section className="space-y-6">
+        <div className={panelClass}>
+          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-red-600">Recipient Context</p>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">Available responders</h2>
+          <div className="mt-6 grid gap-3 md:grid-cols-2">
+            {bloodGroups.map((group) => (
+              <div key={group} className={`rounded-3xl border px-4 py-4 ${group === emailForm.bloodGroup ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-slate-50'}`}>
+                <div className="text-sm font-semibold text-slate-700">{group}</div>
+                <div className="mt-2 text-3xl font-black text-slate-900">{stats.groups[group] || 0}</div>
+                <div className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">Potential donors</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={panelClass}>
+          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-red-600">Accepted Responses</p>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">Donors who confirmed</h2>
+          <div className="mt-6 space-y-4">
+            {alertHistory.length === 0 && <p className="text-sm text-slate-500">No emergency alerts have been sent yet.</p>}
+            {alertHistory.map((alert) => (
+              <div key={alert._id} className="rounded-3xl border border-slate-200 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-lg font-semibold text-slate-900">{alert.subject}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {alert.bloodGroup} | {new Date(alert.createdAt).toLocaleString()} | {alert.recipientCount} donors contacted
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">
+                    {alert.responses.length} accepted
+                  </div>
+                </div>
+                <p className="mt-3 whitespace-pre-line text-sm text-slate-600">{alert.message}</p>
+                <div className="mt-4 space-y-3">
+                  {alert.responses.length === 0 ? (
+                    <p className="text-sm text-slate-500">Waiting for donor responses.</p>
+                  ) : (
+                    alert.responses.map((response) => (
+                      <div key={`${alert._id}-${response.donor}-${response.acceptedAt}`} className="rounded-2xl bg-slate-50 px-4 py-3">
+                        <p className="font-semibold text-slate-900">{response.donorName}</p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {response.donorPhone} | {response.donorEmail}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {response.donorLocation} | Accepted on {new Date(response.acceptedAt).toLocaleString()}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
     </div>
